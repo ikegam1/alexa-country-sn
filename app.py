@@ -81,6 +81,20 @@ class QuestionSpeech(BaseSpeech):
     def __init__(self, speech_text, session_attributes=None, reprompt=None):
         super().__init__(speech_text, False, session_attributes, reprompt)
 
+
+class DialogDelegate(BaseSpeech):
+
+    def __init__(self, speech_text='', session_attributes=None, reprompt=None):
+        super().__init__(speech_text, False, session_attributes, reprompt)
+
+    def build(self):
+        self._response['response'] = {
+                "directives": [{
+                    "type": "Dialog.Delegate"
+                }]
+            }
+        return self._response
+
  
 @app.lambda_function()
 def default(event, context):
@@ -91,16 +105,21 @@ def default(event, context):
     if 'session' in event:
         session = event['session']
     if request_type == 'LaunchRequest':
-        return welcomeIntent()
+        return wellcomeIntent()
     elif request_type == 'IntentRequest' and 'intent' in request:
-        return in_intent(request, session) 
+        if 'dialogState' in request and request['dialogState'] != 'COMPLETED': 
+           logger.info('run DialogDelegate()')
+           #return DialogDelegate().build()
+           return onDialogState(request['intent'], session, request['dialogState'])
+        else:
+           return in_intent(request, session)
 
 def in_intent(request, session):
     intent = request['intent']
     logger.info(str(intent))
 
-    if intent['name'] == 'WellcomIntent':
-        return wellcomIntent()
+    if intent['name'] == 'WellcomeIntent':
+        return wellcomeIntent()
     elif intent['name'] == 'AMAZON.HelpIntent':
         return helpIntent()
     elif intent['name'] == 'AMAZON.NavigateHomeIntent':
@@ -115,7 +134,7 @@ def in_intent(request, session):
     elif 'current' not in session['attributes']:
         pass
     elif session['attributes']['current'] != 'quizIntent':
-        return welcomeIntent()
+        return wellcomeIntent()
     elif session['attributes']['current'] == 'quizIntent':
         return answerIntent(intent, session)
 
@@ -126,7 +145,7 @@ def in_intent(request, session):
 
     return fallback()
 
-def welcomeIntent():
+def wellcomeIntent():
     return QuestionSpeech('魚ヘンの漢字へようこそ！<emphasis level="moderate">クイズはじめる</emphasis>と言ってみてください。魚へんのついた漢字がどれだけ読めるかのクイズです。',{},'クイズはじめると言ってみてくださいね。終わる時は終わると言ってください。').build()
 
 def helpIntent():
@@ -208,8 +227,23 @@ def fallback(session_attribute={}):
     ssml = []
     ssml.append('すみません。聞き取れませんでした。もう一度お願いします。')
     ssml.append('もう一度お願いします。<emphasis level="moderate">はじめから</emphasis>というと最初に戻れます')
-    ssml.append('ごめんなさい。聞き取れなかったです。')
     ssml.append('ハッキリと聞き取れなかったです。もう一度言ってみて。')
     return QuestionSpeech(random.choice(ssml),session_attribute).build()
+
+def onDialogState(intent, session, dialogState):
+    if dialogState == 'STARTED':
+        return DialogDelegate().build()
+    if dialogState == 'IN_PROGRESS':
+        if 'value' in intent['slots']['notanswerSlot']:
+            pass
+        elif 'value' in intent['slots']['notanswerSlottwo']:
+            pass
+        elif 'value' in intent['slots']['matchall']:
+            pass
+        elif 'value' not in intent['slots']['answerSlot']:
+            return DialogDelegate().build()
+
+    return answerIntent(intent, session)
+
 
 
