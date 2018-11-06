@@ -1,6 +1,7 @@
 .chalice/deployments/
 .chalice/venv/
 .chalice/config.json
+.chalice
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -106,4 +107,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+<<<<<<< HEAD
+>>>>>>> origin/master
+=======
 >>>>>>> origin/master
