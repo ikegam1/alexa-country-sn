@@ -6,7 +6,7 @@ import re
 import os
 import sys
 
-app = Chalice(app_name='alexa-aroundfish-quiz')
+app = Chalice(app_name='alexa-country-sn')
 logger = logging.getLogger()
 debug = os.environ.get('DEBUG_MODE')
 if debug == '1':
@@ -15,7 +15,7 @@ else:
     logger.setLevel(logging.ERROR)
 
 #quiz
-import fishes
+import names
 
 #mp3
 drumrole_mp3 = "soundbank://soundlibrary/musical/amzn_sfx_drum_and_cymbal_01"
@@ -81,20 +81,6 @@ class QuestionSpeech(BaseSpeech):
     def __init__(self, speech_text, session_attributes=None, reprompt=None):
         super().__init__(speech_text, False, session_attributes, reprompt)
 
-
-class DialogDelegate(BaseSpeech):
-
-    def __init__(self, speech_text='', session_attributes=None, reprompt=None):
-        super().__init__(speech_text, False, session_attributes, reprompt)
-
-    def build(self):
-        self._response['response'] = {
-                "directives": [{
-                    "type": "Dialog.Delegate"
-                }]
-            }
-        return self._response
-
  
 @app.lambda_function()
 def default(event, context):
@@ -107,12 +93,7 @@ def default(event, context):
     if request_type == 'LaunchRequest':
         return wellcomeIntent()
     elif request_type == 'IntentRequest' and 'intent' in request:
-        if 'dialogState' in request and request['dialogState'] != 'COMPLETED': 
-           logger.info('run DialogDelegate()')
-           #return DialogDelegate().build()
-           return onDialogState(request['intent'], session, request['dialogState'])
-        else:
-           return in_intent(request, session)
+        return in_intent(request, session) 
 
 def in_intent(request, session):
     intent = request['intent']
@@ -146,10 +127,10 @@ def in_intent(request, session):
     return fallback()
 
 def wellcomeIntent():
-    return QuestionSpeech('魚ヘンの漢字へようこそ！<emphasis level="moderate">クイズはじめる</emphasis>と言ってみてください。魚へんのついた漢字がどれだけ読めるかのクイズです。',{},'クイズはじめると言ってみてくださいね。終わる時は終わると言ってください。').build()
+    return QuestionSpeech('国名の漢字へようこそ！<emphasis level="moderate">クイズはじめる</emphasis>と言ってみてください。漢字一文字の国名がどれだけわかるかのクイズです。',{},'クイズはじめると言ってみてくださいね。終わる時は終わると言ってください。').build()
 
 def helpIntent():
-    return QuestionSpeech('魚へんのついた漢字がどれだけ読めるかのクイズです。<emphasis level="moderate">クイズはじめる</emphasis>と言うとクイズをはじめられます。答えを言うと正解か不正解かを答えるよ。次の問題へ進むときは<emphasis level="moderate">次のクイズ</emphasis>と言ってくださいね').build()
+    return QuestionSpeech('漢字一文字の国名がどれだけ読めるかのクイズです。<emphasis level="moderate">クイズはじめる</emphasis>と言うとクイズをはじめられます。答えを言うと正解か不正解かを答えるよ。次の問題へ進むときは<emphasis level="moderate">次のクイズ</emphasis>と言ってくださいね').build()
 
 def quizIntent(session):
     text = 'ではクイズです。30秒以内で答えてくださいね。<break time="1s"/>'
@@ -157,11 +138,11 @@ def quizIntent(session):
 
     """quizcsv"""
     csv = ''
-    for q in fishes.quiz:
+    for q in names.quiz:
        csv += u'%s,,%s\n' % (q["a"],q["w"])
     #logger.info(csv)
 
-    quiz = random.choice(fishes.quiz)
+    quiz = random.choice(names.quiz)
     logger.info(str(quiz))
     
     text += quiz["q"]
@@ -186,15 +167,14 @@ def answerIntent(intent, session):
         slots = intent['slots']
         if 'value' in slots['answerSlot']:
             answer = slots['answerSlot']['value']
-        elif 'value' in slots['matchall']:
-            answer = slots['matchall']['value']
         elif 'value' in slots['notanswerSlot']:
             answer = slots['notanswerSlot']['value']
-        elif 'value' in slots['notanswerSlottwo']:
-            answer = slots['notanswerSlottwo']['value']
     except Exception as e:
-        session_attributes = {"quiz":quiz,"current":"quizIntent"}
-        return fallback(session_attributes) 
+        if 'quiz' in session["attributes"]:
+            session_attributes = {"quiz":quiz,"current":"quizIntent"}
+            return fallback(session_attributes) 
+        else:
+            return fallback() 
 
     try:
         if 'value' in slots['answerSlot']['resolutions']['resolutionsPerAuthority'][0]['values'][0]:
@@ -229,21 +209,6 @@ def fallback(session_attribute={}):
     ssml.append('もう一度お願いします。<emphasis level="moderate">はじめから</emphasis>というと最初に戻れます')
     ssml.append('ハッキリと聞き取れなかったです。もう一度言ってみて。')
     return QuestionSpeech(random.choice(ssml),session_attribute).build()
-
-def onDialogState(intent, session, dialogState):
-    if dialogState == 'STARTED':
-        return DialogDelegate().build()
-    if dialogState == 'IN_PROGRESS':
-        if 'value' in intent['slots']['notanswerSlot']:
-            pass
-        elif 'value' in intent['slots']['notanswerSlottwo']:
-            pass
-        elif 'value' in intent['slots']['matchall']:
-            pass
-        elif 'value' not in intent['slots']['answerSlot']:
-            return DialogDelegate().build()
-
-    return answerIntent(intent, session)
 
 
 
